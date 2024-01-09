@@ -1,0 +1,623 @@
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"BMP180.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/BMP180.c"
+  18              		.section	.text.BMP180_ReadPressure,"ax",%progbits
+  19              		.align	1
+  20              		.global	BMP180_ReadPressure
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	BMP180_ReadPressure:
+  26              	.LVL0:
+  27              	.LFB69:
+   1:Core/Src/BMP180.c **** /*
+   2:Core/Src/BMP180.c ****  * ==================================================
+   3:Core/Src/BMP180.c ****  *   BMP180.c - Library for BMP180 pressure sensor.
+   4:Core/Src/BMP180.c ****  *   Created by Matia Choi, 01/08/2024
+   5:Core/Src/BMP180.c ****  * ==================================================
+   6:Core/Src/BMP180.c ****  */
+   7:Core/Src/BMP180.c **** 
+   8:Core/Src/BMP180.c **** #include "BMP180.h"
+   9:Core/Src/BMP180.c **** 
+  10:Core/Src/BMP180.c **** uint8_t BMP180_Init(BMP180 *device, I2C_HandleTypeDef *hi2c, uint8_t ctrl_meas) {
+  11:Core/Src/BMP180.c ****     device->hi2c = hi2c;
+  12:Core/Src/BMP180.c ****     device->curr_ctrl_meas = ctrl_meas;
+  13:Core/Src/BMP180.c ****     device->temp_C = 0.0f;
+  14:Core/Src/BMP180.c ****     device->pressure_Bar = 0.0f;
+  15:Core/Src/BMP180.c **** 
+  16:Core/Src/BMP180.c ****     uint8_t errNum = 0;
+  17:Core/Src/BMP180.c ****     uint8_t regData;
+  18:Core/Src/BMP180.c **** 
+  19:Core/Src/BMP180.c ****     errNum += (BMP180_ReadReg(device, BMP180_REG_ID, &regData) != HAL_OK);
+  20:Core/Src/BMP180.c **** 
+  21:Core/Src/BMP180.c ****     if (regData != BMP180_DEVICE_ID) return 255;
+  22:Core/Src/BMP180.c ****     
+  23:Core/Src/BMP180.c ****     errNum += (BMP180_SET_CTRL_MEAS(device, device->curr_ctrl_meas) != HAL_OK);
+  24:Core/Src/BMP180.c **** 
+  25:Core/Src/BMP180.c ****     //load calibratoin data
+  26:Core/Src/BMP180.c ****     errNum += (BMP180_Read_Calibration_Data(device, &(device->calibration_data)) != HAL_OK);
+  27:Core/Src/BMP180.c **** 
+  28:Core/Src/BMP180.c **** 
+  29:Core/Src/BMP180.c **** }
+  30:Core/Src/BMP180.c **** 
+  31:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_Read_Calibration_Data(BMP180 *device, CALIBRATION_DATA *calibration_data){
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 2
+
+
+  32:Core/Src/BMP180.c ****     uint8_t rawCalibratoinData[22];
+  33:Core/Src/BMP180.c ****     HAL_StatusTypeDef status = BMP180_ReadRegs(device, BMP180_REG_CALIB_0, rawCalibratoinData, 22);
+  34:Core/Src/BMP180.c **** 
+  35:Core/Src/BMP180.c ****     int16_t* ptr = (int16_t*)calibration_data;
+  36:Core/Src/BMP180.c ****     
+  37:Core/Src/BMP180.c ****     for (int i = 0; i < 11; i++) {
+  38:Core/Src/BMP180.c ****         *(ptr+i) = (rawCalibratoinData[2*i] << 8) | rawCalibratoinData[2*i+1];
+  39:Core/Src/BMP180.c ****     } 
+  40:Core/Src/BMP180.c **** 
+  41:Core/Src/BMP180.c ****     return status;
+  42:Core/Src/BMP180.c ****     
+  43:Core/Src/BMP180.c **** }
+  44:Core/Src/BMP180.c **** 
+  45:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_SET_CTRL_MEAS(BMP180 *device, uint8_t ctrl_meas) {
+  46:Core/Src/BMP180.c ****     return BMP180_WriteReg(device, BMP180_REG_CTRL_MEAS, &ctrl_meas);
+  47:Core/Src/BMP180.c **** }
+  48:Core/Src/BMP180.c **** 
+  49:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_ReadTemp(BMP180 *device) {
+  50:Core/Src/BMP180.c ****     uint16_t UT = 0x00;
+  51:Core/Src/BMP180.c ****     uint8_t tempMSB = 0x00;
+  52:Core/Src/BMP180.c ****     uint8_t tempLSB = 0x00;
+  53:Core/Src/BMP180.c **** 
+  54:Core/Src/BMP180.c ****     //00 1 0 0000
+  55:Core/Src/BMP180.c ****   
+  56:Core/Src/BMP180.c **** 
+  57:Core/Src/BMP180.c **** 
+  58:Core/Src/BMP180.c ****     BMP180_ReadReg(device, BMP180_REG_OUT_MSB, &tempMSB);
+  59:Core/Src/BMP180.c ****     BMP180_ReadReg(device, BMP180_REG_OUT_LSB, &tempLSB);
+  60:Core/Src/BMP180.c **** 
+  61:Core/Src/BMP180.c ****     UT = (tempMSB << 8) | tempLSB;
+  62:Core/Src/BMP180.c **** 
+  63:Core/Src/BMP180.c **** 
+  64:Core/Src/BMP180.c **** 
+  65:Core/Src/BMP180.c **** }
+  66:Core/Src/BMP180.c **** 
+  67:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_ReadPressure(BMP180 *device) {}
+  28              		.loc 1 67 55 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  33              		.loc 1 67 56 view .LVU1
+  34              	.LVL1:
+  35              		.loc 1 67 56 is_stmt 0 view .LVU2
+  36 0000 7047     		bx	lr
+  37              		.cfi_endproc
+  38              	.LFE69:
+  40              		.section	.text.BMP180_ReadReg,"ax",%progbits
+  41              		.align	1
+  42              		.global	BMP180_ReadReg
+  43              		.syntax unified
+  44              		.thumb
+  45              		.thumb_func
+  47              	BMP180_ReadReg:
+  48              	.LVL2:
+  49              	.LFB70:
+  68:Core/Src/BMP180.c **** 
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 3
+
+
+  69:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_ReadReg(BMP180 *device, uint8_t reg_addr, uint8_t *data) {
+  50              		.loc 1 69 83 is_stmt 1 view -0
+  51              		.cfi_startproc
+  52              		@ args = 0, pretend = 0, frame = 0
+  53              		@ frame_needed = 0, uses_anonymous_args = 0
+  54              		.loc 1 69 83 is_stmt 0 view .LVU4
+  55 0000 00B5     		push	{lr}
+  56              		.cfi_def_cfa_offset 4
+  57              		.cfi_offset 14, -4
+  58 0002 85B0     		sub	sp, sp, #20
+  59              		.cfi_def_cfa_offset 24
+  70:Core/Src/BMP180.c ****     // I2C-Handle, device-addr, loc-to-read-from, size-of-mem, output-ptr, how-many-bytes-to-read, 
+  71:Core/Src/BMP180.c ****     return HAL_I2C_Mem_Read(device->hi2c, BMP180_I2C_ADDR, reg_addr, I2C_MEMADD_SIZE_8BIT, data, 1,
+  60              		.loc 1 71 5 is_stmt 1 view .LVU5
+  61              		.loc 1 71 12 is_stmt 0 view .LVU6
+  62 0004 0068     		ldr	r0, [r0]
+  63              	.LVL3:
+  64              		.loc 1 71 12 view .LVU7
+  65 0006 4FF0FF33 		mov	r3, #-1
+  66 000a 0293     		str	r3, [sp, #8]
+  67 000c 0123     		movs	r3, #1
+  68 000e 0193     		str	r3, [sp, #4]
+  69 0010 0092     		str	r2, [sp]
+  70 0012 0A46     		mov	r2, r1
+  71              	.LVL4:
+  72              		.loc 1 71 12 view .LVU8
+  73 0014 EE21     		movs	r1, #238
+  74              	.LVL5:
+  75              		.loc 1 71 12 view .LVU9
+  76 0016 FFF7FEFF 		bl	HAL_I2C_Mem_Read
+  77              	.LVL6:
+  72:Core/Src/BMP180.c **** }
+  78              		.loc 1 72 1 view .LVU10
+  79 001a 05B0     		add	sp, sp, #20
+  80              		.cfi_def_cfa_offset 4
+  81              		@ sp needed
+  82 001c 5DF804FB 		ldr	pc, [sp], #4
+  83              		.cfi_endproc
+  84              	.LFE70:
+  86              		.section	.text.BMP180_ReadTemp,"ax",%progbits
+  87              		.align	1
+  88              		.global	BMP180_ReadTemp
+  89              		.syntax unified
+  90              		.thumb
+  91              		.thumb_func
+  93              	BMP180_ReadTemp:
+  94              	.LVL7:
+  95              	.LFB68:
+  49:Core/Src/BMP180.c ****     uint16_t UT = 0x00;
+  96              		.loc 1 49 51 is_stmt 1 view -0
+  97              		.cfi_startproc
+  98              		@ args = 0, pretend = 0, frame = 8
+  99              		@ frame_needed = 0, uses_anonymous_args = 0
+  49:Core/Src/BMP180.c ****     uint16_t UT = 0x00;
+ 100              		.loc 1 49 51 is_stmt 0 view .LVU12
+ 101 0000 10B5     		push	{r4, lr}
+ 102              		.cfi_def_cfa_offset 8
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 4
+
+
+ 103              		.cfi_offset 4, -8
+ 104              		.cfi_offset 14, -4
+ 105 0002 82B0     		sub	sp, sp, #8
+ 106              		.cfi_def_cfa_offset 16
+ 107 0004 0446     		mov	r4, r0
+  50:Core/Src/BMP180.c ****     uint8_t tempMSB = 0x00;
+ 108              		.loc 1 50 5 is_stmt 1 view .LVU13
+ 109              	.LVL8:
+  51:Core/Src/BMP180.c ****     uint8_t tempLSB = 0x00;
+ 110              		.loc 1 51 5 view .LVU14
+  51:Core/Src/BMP180.c ****     uint8_t tempLSB = 0x00;
+ 111              		.loc 1 51 13 is_stmt 0 view .LVU15
+ 112 0006 0023     		movs	r3, #0
+ 113 0008 8DF80730 		strb	r3, [sp, #7]
+  52:Core/Src/BMP180.c **** 
+ 114              		.loc 1 52 5 is_stmt 1 view .LVU16
+  52:Core/Src/BMP180.c **** 
+ 115              		.loc 1 52 13 is_stmt 0 view .LVU17
+ 116 000c 8DF80630 		strb	r3, [sp, #6]
+  58:Core/Src/BMP180.c ****     BMP180_ReadReg(device, BMP180_REG_OUT_LSB, &tempLSB);
+ 117              		.loc 1 58 5 is_stmt 1 view .LVU18
+ 118 0010 0DF10702 		add	r2, sp, #7
+ 119 0014 F621     		movs	r1, #246
+ 120 0016 FFF7FEFF 		bl	BMP180_ReadReg
+ 121              	.LVL9:
+  59:Core/Src/BMP180.c **** 
+ 122              		.loc 1 59 5 view .LVU19
+ 123 001a 0DF10602 		add	r2, sp, #6
+ 124 001e F721     		movs	r1, #247
+ 125 0020 2046     		mov	r0, r4
+ 126 0022 FFF7FEFF 		bl	BMP180_ReadReg
+ 127              	.LVL10:
+  61:Core/Src/BMP180.c **** 
+ 128              		.loc 1 61 5 view .LVU20
+  65:Core/Src/BMP180.c **** 
+ 129              		.loc 1 65 1 is_stmt 0 view .LVU21
+ 130 0026 02B0     		add	sp, sp, #8
+ 131              		.cfi_def_cfa_offset 8
+ 132              		@ sp needed
+ 133 0028 10BD     		pop	{r4, pc}
+  65:Core/Src/BMP180.c **** 
+ 134              		.loc 1 65 1 view .LVU22
+ 135              		.cfi_endproc
+ 136              	.LFE68:
+ 138              		.section	.text.BMP180_ReadRegs,"ax",%progbits
+ 139              		.align	1
+ 140              		.global	BMP180_ReadRegs
+ 141              		.syntax unified
+ 142              		.thumb
+ 143              		.thumb_func
+ 145              	BMP180_ReadRegs:
+ 146              	.LVL11:
+ 147              	.LFB71:
+  73:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_ReadRegs(BMP180 *device, uint8_t reg_addr, uint8_t *data, uint8_t size) {
+ 148              		.loc 1 73 98 is_stmt 1 view -0
+ 149              		.cfi_startproc
+ 150              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 5
+
+
+ 151              		@ frame_needed = 0, uses_anonymous_args = 0
+ 152              		.loc 1 73 98 is_stmt 0 view .LVU24
+ 153 0000 10B5     		push	{r4, lr}
+ 154              		.cfi_def_cfa_offset 8
+ 155              		.cfi_offset 4, -8
+ 156              		.cfi_offset 14, -4
+ 157 0002 84B0     		sub	sp, sp, #16
+ 158              		.cfi_def_cfa_offset 24
+  74:Core/Src/BMP180.c ****     return HAL_I2C_Mem_Read(device->hi2c, BMP180_I2C_ADDR, reg_addr, I2C_MEMADD_SIZE_8BIT, data, si
+ 159              		.loc 1 74 5 is_stmt 1 view .LVU25
+ 160              		.loc 1 74 12 is_stmt 0 view .LVU26
+ 161 0004 0068     		ldr	r0, [r0]
+ 162              	.LVL12:
+ 163              		.loc 1 74 12 view .LVU27
+ 164 0006 4FF0FF34 		mov	r4, #-1
+ 165 000a 0294     		str	r4, [sp, #8]
+ 166 000c 0193     		str	r3, [sp, #4]
+ 167 000e 0092     		str	r2, [sp]
+ 168 0010 0123     		movs	r3, #1
+ 169              	.LVL13:
+ 170              		.loc 1 74 12 view .LVU28
+ 171 0012 0A46     		mov	r2, r1
+ 172              	.LVL14:
+ 173              		.loc 1 74 12 view .LVU29
+ 174 0014 EE21     		movs	r1, #238
+ 175              	.LVL15:
+ 176              		.loc 1 74 12 view .LVU30
+ 177 0016 FFF7FEFF 		bl	HAL_I2C_Mem_Read
+ 178              	.LVL16:
+  75:Core/Src/BMP180.c **** }
+ 179              		.loc 1 75 1 view .LVU31
+ 180 001a 04B0     		add	sp, sp, #16
+ 181              		.cfi_def_cfa_offset 8
+ 182              		@ sp needed
+ 183 001c 10BD     		pop	{r4, pc}
+ 184              		.cfi_endproc
+ 185              	.LFE71:
+ 187              		.section	.text.BMP180_Read_Calibration_Data,"ax",%progbits
+ 188              		.align	1
+ 189              		.global	BMP180_Read_Calibration_Data
+ 190              		.syntax unified
+ 191              		.thumb
+ 192              		.thumb_func
+ 194              	BMP180_Read_Calibration_Data:
+ 195              	.LVL17:
+ 196              	.LFB66:
+  31:Core/Src/BMP180.c ****     uint8_t rawCalibratoinData[22];
+ 197              		.loc 1 31 99 is_stmt 1 view -0
+ 198              		.cfi_startproc
+ 199              		@ args = 0, pretend = 0, frame = 24
+ 200              		@ frame_needed = 0, uses_anonymous_args = 0
+  31:Core/Src/BMP180.c ****     uint8_t rawCalibratoinData[22];
+ 201              		.loc 1 31 99 is_stmt 0 view .LVU33
+ 202 0000 10B5     		push	{r4, lr}
+ 203              		.cfi_def_cfa_offset 8
+ 204              		.cfi_offset 4, -8
+ 205              		.cfi_offset 14, -4
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 6
+
+
+ 206 0002 86B0     		sub	sp, sp, #24
+ 207              		.cfi_def_cfa_offset 32
+ 208 0004 0C46     		mov	r4, r1
+  32:Core/Src/BMP180.c ****     HAL_StatusTypeDef status = BMP180_ReadRegs(device, BMP180_REG_CALIB_0, rawCalibratoinData, 22);
+ 209              		.loc 1 32 5 is_stmt 1 view .LVU34
+  33:Core/Src/BMP180.c **** 
+ 210              		.loc 1 33 5 view .LVU35
+  33:Core/Src/BMP180.c **** 
+ 211              		.loc 1 33 32 is_stmt 0 view .LVU36
+ 212 0006 1623     		movs	r3, #22
+ 213 0008 6A46     		mov	r2, sp
+ 214 000a AA21     		movs	r1, #170
+ 215              	.LVL18:
+  33:Core/Src/BMP180.c **** 
+ 216              		.loc 1 33 32 view .LVU37
+ 217 000c FFF7FEFF 		bl	BMP180_ReadRegs
+ 218              	.LVL19:
+  35:Core/Src/BMP180.c ****     
+ 219              		.loc 1 35 5 is_stmt 1 view .LVU38
+  37:Core/Src/BMP180.c ****         *(ptr+i) = (rawCalibratoinData[2*i] << 8) | rawCalibratoinData[2*i+1];
+ 220              		.loc 1 37 5 view .LVU39
+ 221              	.LBB2:
+  37:Core/Src/BMP180.c ****         *(ptr+i) = (rawCalibratoinData[2*i] << 8) | rawCalibratoinData[2*i+1];
+ 222              		.loc 1 37 10 view .LVU40
+  37:Core/Src/BMP180.c ****         *(ptr+i) = (rawCalibratoinData[2*i] << 8) | rawCalibratoinData[2*i+1];
+ 223              		.loc 1 37 14 is_stmt 0 view .LVU41
+ 224 0010 0023     		movs	r3, #0
+  37:Core/Src/BMP180.c ****         *(ptr+i) = (rawCalibratoinData[2*i] << 8) | rawCalibratoinData[2*i+1];
+ 225              		.loc 1 37 5 view .LVU42
+ 226 0012 0EE0     		b	.L9
+ 227              	.LVL20:
+ 228              	.L10:
+  38:Core/Src/BMP180.c ****     } 
+ 229              		.loc 1 38 9 is_stmt 1 view .LVU43
+  38:Core/Src/BMP180.c ****     } 
+ 230              		.loc 1 38 41 is_stmt 0 view .LVU44
+ 231 0014 5A00     		lsls	r2, r3, #1
+  38:Core/Src/BMP180.c ****     } 
+ 232              		.loc 1 38 39 view .LVU45
+ 233 0016 06A9     		add	r1, sp, #24
+ 234 0018 01EB4301 		add	r1, r1, r3, lsl #1
+ 235 001c 11F818CC 		ldrb	ip, [r1, #-24]	@ zero_extendqisi2
+  38:Core/Src/BMP180.c ****     } 
+ 236              		.loc 1 38 71 view .LVU46
+ 237 0020 1932     		adds	r2, r2, #25
+ 238 0022 6A44     		add	r2, sp, r2
+ 239 0024 12F8182C 		ldrb	r2, [r2, #-24]	@ zero_extendqisi2
+  38:Core/Src/BMP180.c ****     } 
+ 240              		.loc 1 38 51 view .LVU47
+ 241 0028 42EA0C22 		orr	r2, r2, ip, lsl #8
+  38:Core/Src/BMP180.c ****     } 
+ 242              		.loc 1 38 18 view .LVU48
+ 243 002c 24F81320 		strh	r2, [r4, r3, lsl #1]	@ movhi
+  37:Core/Src/BMP180.c ****         *(ptr+i) = (rawCalibratoinData[2*i] << 8) | rawCalibratoinData[2*i+1];
+ 244              		.loc 1 37 30 is_stmt 1 discriminator 3 view .LVU49
+ 245 0030 0133     		adds	r3, r3, #1
+ 246              	.LVL21:
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 7
+
+
+ 247              	.L9:
+  37:Core/Src/BMP180.c ****         *(ptr+i) = (rawCalibratoinData[2*i] << 8) | rawCalibratoinData[2*i+1];
+ 248              		.loc 1 37 23 discriminator 1 view .LVU50
+ 249 0032 0A2B     		cmp	r3, #10
+ 250 0034 EEDD     		ble	.L10
+ 251              	.LBE2:
+  41:Core/Src/BMP180.c ****     
+ 252              		.loc 1 41 5 view .LVU51
+  43:Core/Src/BMP180.c **** 
+ 253              		.loc 1 43 1 is_stmt 0 view .LVU52
+ 254 0036 06B0     		add	sp, sp, #24
+ 255              		.cfi_def_cfa_offset 8
+ 256              		@ sp needed
+ 257 0038 10BD     		pop	{r4, pc}
+  43:Core/Src/BMP180.c **** 
+ 258              		.loc 1 43 1 view .LVU53
+ 259              		.cfi_endproc
+ 260              	.LFE66:
+ 262              		.section	.text.BMP180_WriteReg,"ax",%progbits
+ 263              		.align	1
+ 264              		.global	BMP180_WriteReg
+ 265              		.syntax unified
+ 266              		.thumb
+ 267              		.thumb_func
+ 269              	BMP180_WriteReg:
+ 270              	.LVL22:
+ 271              	.LFB72:
+  76:Core/Src/BMP180.c **** 
+  77:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_WriteReg(BMP180 *device, uint8_t reg_addr, uint8_t *data) {
+ 272              		.loc 1 77 84 is_stmt 1 view -0
+ 273              		.cfi_startproc
+ 274              		@ args = 0, pretend = 0, frame = 0
+ 275              		@ frame_needed = 0, uses_anonymous_args = 0
+ 276              		.loc 1 77 84 is_stmt 0 view .LVU55
+ 277 0000 00B5     		push	{lr}
+ 278              		.cfi_def_cfa_offset 4
+ 279              		.cfi_offset 14, -4
+ 280 0002 85B0     		sub	sp, sp, #20
+ 281              		.cfi_def_cfa_offset 24
+  78:Core/Src/BMP180.c ****     return HAL_I2C_Mem_Write(device->hi2c, BMP180_I2C_ADDR, reg_addr, I2C_MEMADD_SIZE_8BIT, data, 1
+ 282              		.loc 1 78 5 is_stmt 1 view .LVU56
+ 283              		.loc 1 78 12 is_stmt 0 view .LVU57
+ 284 0004 0068     		ldr	r0, [r0]
+ 285              	.LVL23:
+ 286              		.loc 1 78 12 view .LVU58
+ 287 0006 4FF0FF33 		mov	r3, #-1
+ 288 000a 0293     		str	r3, [sp, #8]
+ 289 000c 0123     		movs	r3, #1
+ 290 000e 0193     		str	r3, [sp, #4]
+ 291 0010 0092     		str	r2, [sp]
+ 292 0012 0A46     		mov	r2, r1
+ 293              	.LVL24:
+ 294              		.loc 1 78 12 view .LVU59
+ 295 0014 EE21     		movs	r1, #238
+ 296              	.LVL25:
+ 297              		.loc 1 78 12 view .LVU60
+ 298 0016 FFF7FEFF 		bl	HAL_I2C_Mem_Write
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 8
+
+
+ 299              	.LVL26:
+  79:Core/Src/BMP180.c **** }...
+ 300              		.loc 1 79 1 view .LVU61
+ 301 001a 05B0     		add	sp, sp, #20
+ 302              		.cfi_def_cfa_offset 4
+ 303              		@ sp needed
+ 304 001c 5DF804FB 		ldr	pc, [sp], #4
+ 305              		.cfi_endproc
+ 306              	.LFE72:
+ 308              		.section	.text.BMP180_SET_CTRL_MEAS,"ax",%progbits
+ 309              		.align	1
+ 310              		.global	BMP180_SET_CTRL_MEAS
+ 311              		.syntax unified
+ 312              		.thumb
+ 313              		.thumb_func
+ 315              	BMP180_SET_CTRL_MEAS:
+ 316              	.LVL27:
+ 317              	.LFB67:
+  45:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_SET_CTRL_MEAS(BMP180 *device, uint8_t ctrl_meas) {
+ 318              		.loc 1 45 75 is_stmt 1 view -0
+ 319              		.cfi_startproc
+ 320              		@ args = 0, pretend = 0, frame = 8
+ 321              		@ frame_needed = 0, uses_anonymous_args = 0
+  45:Core/Src/BMP180.c **** HAL_StatusTypeDef BMP180_SET_CTRL_MEAS(BMP180 *device, uint8_t ctrl_meas) {
+ 322              		.loc 1 45 75 is_stmt 0 view .LVU63
+ 323 0000 00B5     		push	{lr}
+ 324              		.cfi_def_cfa_offset 4
+ 325              		.cfi_offset 14, -4
+ 326 0002 83B0     		sub	sp, sp, #12
+ 327              		.cfi_def_cfa_offset 16
+ 328 0004 8DF80710 		strb	r1, [sp, #7]
+  46:Core/Src/BMP180.c ****     return BMP180_WriteReg(device, BMP180_REG_CTRL_MEAS, &ctrl_meas);
+ 329              		.loc 1 46 5 is_stmt 1 view .LVU64
+  46:Core/Src/BMP180.c ****     return BMP180_WriteReg(device, BMP180_REG_CTRL_MEAS, &ctrl_meas);
+ 330              		.loc 1 46 12 is_stmt 0 view .LVU65
+ 331 0008 0DF10702 		add	r2, sp, #7
+ 332 000c F421     		movs	r1, #244
+ 333              	.LVL28:
+  46:Core/Src/BMP180.c ****     return BMP180_WriteReg(device, BMP180_REG_CTRL_MEAS, &ctrl_meas);
+ 334              		.loc 1 46 12 view .LVU66
+ 335 000e FFF7FEFF 		bl	BMP180_WriteReg
+ 336              	.LVL29:
+  47:Core/Src/BMP180.c **** }
+ 337              		.loc 1 47 1 view .LVU67
+ 338 0012 03B0     		add	sp, sp, #12
+ 339              		.cfi_def_cfa_offset 4
+ 340              		@ sp needed
+ 341 0014 5DF804FB 		ldr	pc, [sp], #4
+ 342              		.cfi_endproc
+ 343              	.LFE67:
+ 345              		.section	.text.BMP180_Init,"ax",%progbits
+ 346              		.align	1
+ 347              		.global	BMP180_Init
+ 348              		.syntax unified
+ 349              		.thumb
+ 350              		.thumb_func
+ 352              	BMP180_Init:
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 9
+
+
+ 353              	.LVL30:
+ 354              	.LFB65:
+  10:Core/Src/BMP180.c **** uint8_t BMP180_Init(BMP180 *device, I2C_HandleTypeDef *hi2c, uint8_t ctrl_meas) {
+ 355              		.loc 1 10 81 is_stmt 1 view -0
+ 356              		.cfi_startproc
+ 357              		@ args = 0, pretend = 0, frame = 8
+ 358              		@ frame_needed = 0, uses_anonymous_args = 0
+  10:Core/Src/BMP180.c **** uint8_t BMP180_Init(BMP180 *device, I2C_HandleTypeDef *hi2c, uint8_t ctrl_meas) {
+ 359              		.loc 1 10 81 is_stmt 0 view .LVU69
+ 360 0000 10B5     		push	{r4, lr}
+ 361              		.cfi_def_cfa_offset 8
+ 362              		.cfi_offset 4, -8
+ 363              		.cfi_offset 14, -4
+ 364 0002 82B0     		sub	sp, sp, #8
+ 365              		.cfi_def_cfa_offset 16
+ 366 0004 0446     		mov	r4, r0
+  11:Core/Src/BMP180.c ****     device->hi2c = hi2c;
+ 367              		.loc 1 11 5 is_stmt 1 view .LVU70
+  11:Core/Src/BMP180.c ****     device->hi2c = hi2c;
+ 368              		.loc 1 11 18 is_stmt 0 view .LVU71
+ 369 0006 0160     		str	r1, [r0]
+  12:Core/Src/BMP180.c ****     device->curr_ctrl_meas = ctrl_meas;
+ 370              		.loc 1 12 5 is_stmt 1 view .LVU72
+  12:Core/Src/BMP180.c ****     device->curr_ctrl_meas = ctrl_meas;
+ 371              		.loc 1 12 28 is_stmt 0 view .LVU73
+ 372 0008 0271     		strb	r2, [r0, #4]
+  13:Core/Src/BMP180.c ****     device->temp_C = 0.0f;
+ 373              		.loc 1 13 5 is_stmt 1 view .LVU74
+  13:Core/Src/BMP180.c ****     device->temp_C = 0.0f;
+ 374              		.loc 1 13 20 is_stmt 0 view .LVU75
+ 375 000a 0023     		movs	r3, #0
+ 376 000c 8360     		str	r3, [r0, #8]	@ float
+  14:Core/Src/BMP180.c ****     device->pressure_Bar = 0.0f;
+ 377              		.loc 1 14 5 is_stmt 1 view .LVU76
+  14:Core/Src/BMP180.c ****     device->pressure_Bar = 0.0f;
+ 378              		.loc 1 14 26 is_stmt 0 view .LVU77
+ 379 000e C360     		str	r3, [r0, #12]	@ float
+  16:Core/Src/BMP180.c ****     uint8_t errNum = 0;
+ 380              		.loc 1 16 5 is_stmt 1 view .LVU78
+ 381              	.LVL31:
+  17:Core/Src/BMP180.c ****     uint8_t regData;
+ 382              		.loc 1 17 5 view .LVU79
+  19:Core/Src/BMP180.c ****     errNum += (BMP180_ReadReg(device, BMP180_REG_ID, &regData) != HAL_OK);
+ 383              		.loc 1 19 5 view .LVU80
+  19:Core/Src/BMP180.c ****     errNum += (BMP180_ReadReg(device, BMP180_REG_ID, &regData) != HAL_OK);
+ 384              		.loc 1 19 16 is_stmt 0 view .LVU81
+ 385 0010 0DF10702 		add	r2, sp, #7
+ 386              	.LVL32:
+  19:Core/Src/BMP180.c ****     errNum += (BMP180_ReadReg(device, BMP180_REG_ID, &regData) != HAL_OK);
+ 387              		.loc 1 19 16 view .LVU82
+ 388 0014 D021     		movs	r1, #208
+ 389              	.LVL33:
+  19:Core/Src/BMP180.c ****     errNum += (BMP180_ReadReg(device, BMP180_REG_ID, &regData) != HAL_OK);
+ 390              		.loc 1 19 16 view .LVU83
+ 391 0016 FFF7FEFF 		bl	BMP180_ReadReg
+ 392              	.LVL34:
+  21:Core/Src/BMP180.c ****     if (regData != BMP180_DEVICE_ID) return 255;
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 10
+
+
+ 393              		.loc 1 21 5 is_stmt 1 view .LVU84
+  21:Core/Src/BMP180.c ****     if (regData != BMP180_DEVICE_ID) return 255;
+ 394              		.loc 1 21 17 is_stmt 0 view .LVU85
+ 395 001a 9DF80730 		ldrb	r3, [sp, #7]	@ zero_extendqisi2
+  21:Core/Src/BMP180.c ****     if (regData != BMP180_DEVICE_ID) return 255;
+ 396              		.loc 1 21 8 view .LVU86
+ 397 001e 552B     		cmp	r3, #85
+ 398 0020 02D0     		beq	.L17
+  21:Core/Src/BMP180.c ****     if (regData != BMP180_DEVICE_ID) return 255;
+ 399              		.loc 1 21 38 is_stmt 1 discriminator 1 view .LVU87
+  21:Core/Src/BMP180.c ****     if (regData != BMP180_DEVICE_ID) return 255;
+ 400              		.loc 1 21 45 is_stmt 0 discriminator 3 view .LVU88
+ 401 0022 FF20     		movs	r0, #255
+ 402              	.LVL35:
+ 403              	.L16:
+  29:Core/Src/BMP180.c **** }
+ 404              		.loc 1 29 1 view .LVU89
+ 405 0024 02B0     		add	sp, sp, #8
+ 406              		.cfi_remember_state
+ 407              		.cfi_def_cfa_offset 8
+ 408              		@ sp needed
+ 409 0026 10BD     		pop	{r4, pc}
+ 410              	.LVL36:
+ 411              	.L17:
+ 412              		.cfi_restore_state
+  23:Core/Src/BMP180.c ****     errNum += (BMP180_SET_CTRL_MEAS(device, device->curr_ctrl_meas) != HAL_OK);
+ 413              		.loc 1 23 5 is_stmt 1 view .LVU90
+  23:Core/Src/BMP180.c ****     errNum += (BMP180_SET_CTRL_MEAS(device, device->curr_ctrl_meas) != HAL_OK);
+ 414              		.loc 1 23 16 is_stmt 0 view .LVU91
+ 415 0028 2179     		ldrb	r1, [r4, #4]	@ zero_extendqisi2
+ 416 002a 2046     		mov	r0, r4
+ 417 002c FFF7FEFF 		bl	BMP180_SET_CTRL_MEAS
+ 418              	.LVL37:
+  26:Core/Src/BMP180.c ****     errNum += (BMP180_Read_Calibration_Data(device, &(device->calibration_data)) != HAL_OK);
+ 419              		.loc 1 26 5 is_stmt 1 view .LVU92
+  26:Core/Src/BMP180.c ****     errNum += (BMP180_Read_Calibration_Data(device, &(device->calibration_data)) != HAL_OK);
+ 420              		.loc 1 26 16 is_stmt 0 view .LVU93
+ 421 0030 04F11001 		add	r1, r4, #16
+ 422 0034 2046     		mov	r0, r4
+ 423 0036 FFF7FEFF 		bl	BMP180_Read_Calibration_Data
+ 424              	.LVL38:
+  29:Core/Src/BMP180.c **** }
+ 425              		.loc 1 29 1 view .LVU94
+ 426 003a F3E7     		b	.L16
+ 427              		.cfi_endproc
+ 428              	.LFE65:
+ 430              		.text
+ 431              	.Letext0:
+ 432              		.file 2 "C:/Users/matia/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 433              		.file 3 "C:/Users/matia/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 434              		.file 4 "Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h"
+ 435              		.file 5 "Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_def.h"
+ 436              		.file 6 "Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h"
+ 437              		.file 7 "Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_i2c.h"
+ 438              		.file 8 "Core/Inc/BMP180.h"
+ARM GAS  C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s 			page 11
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 BMP180.c
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:19     .text.BMP180_ReadPressure:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:25     .text.BMP180_ReadPressure:00000000 BMP180_ReadPressure
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:41     .text.BMP180_ReadReg:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:47     .text.BMP180_ReadReg:00000000 BMP180_ReadReg
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:87     .text.BMP180_ReadTemp:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:93     .text.BMP180_ReadTemp:00000000 BMP180_ReadTemp
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:139    .text.BMP180_ReadRegs:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:145    .text.BMP180_ReadRegs:00000000 BMP180_ReadRegs
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:188    .text.BMP180_Read_Calibration_Data:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:194    .text.BMP180_Read_Calibration_Data:00000000 BMP180_Read_Calibration_Data
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:263    .text.BMP180_WriteReg:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:269    .text.BMP180_WriteReg:00000000 BMP180_WriteReg
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:309    .text.BMP180_SET_CTRL_MEAS:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:315    .text.BMP180_SET_CTRL_MEAS:00000000 BMP180_SET_CTRL_MEAS
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:346    .text.BMP180_Init:00000000 $t
+C:\Users\matia\AppData\Local\Temp\ccJwM3G8.s:352    .text.BMP180_Init:00000000 BMP180_Init
+
+UNDEFINED SYMBOLS
+HAL_I2C_Mem_Read
+HAL_I2C_Mem_Write
