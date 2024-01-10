@@ -14,8 +14,9 @@
  * ===========
  */
 #define BMP180_I2C_ADDR 0xEE  // 0x77 << 1
-
 #define BMP180_DEVICE_ID 0x55
+
+#define PRESSURE_SEA_LEVEL_PA 101325
 
 /* =============
  *   REGISTERS
@@ -29,6 +30,8 @@
 #define BMP180_REG_ID 0xD0
 #define BMP180_REG_CALIB_21 0xBF
 #define BMP180_REG_CALIB_0 0xAA
+
+#define BMP180_CTRL_MEAS_TEMP 0x2E
 /* =================
  *   Sensor struct
  * =================
@@ -51,23 +54,34 @@ typedef struct {
     // I2c handle
     I2C_HandleTypeDef *hi2c;
 
-    uint8_t curr_ctrl_meas;
+    HAL_StatusTypeDef device_id_status;
 
-    // temperature data
+    // Raw data
+    uint32_t raw_pressure, raw_temperature;
+
+    // Processed data;
+    uint32_t pressure_Pa;
     float temp_C;
+    float altitude_M;
 
-    // pressure data
-    float pressure_Bar;
+    uint16_t raw;
 
     CALIBRATION_DATA calibration_data;
 
 } BMP180;
 
+typedef enum {
+    CTRL_REG_TEMPERATURE = 0x2E,
+    CTRL_REG_PRESSURE_OSS_0 = 0x34,  // ultra low power
+    CTRL_REG_PRESSURE_OSS_1 = 0x74,  // standard
+    CTRL_REG_PRESSURE_OSS_2 = 0xB4,  // high res
+    CTRL_REG_PRESSURE_OSS_3 = 0xF4,  // ultra high res
+} CONTROL_REGISTER;
+
 /*
  * Initialization
  */
-
-uint8_t BMP180_Init(BMP180 *device, I2C_HandleTypeDef *hi2c, uint8_t ctrl_meas);
+uint8_t BMP180_Init(BMP180 *device, I2C_HandleTypeDef *hi2c);
 
 HAL_StatusTypeDef BMP180_Read_Calibration_Data(BMP180 *device, CALIBRATION_DATA *calibration_data);
 
@@ -88,7 +102,7 @@ HAL_StatusTypeDef BMP180_SET_SCO(BMP180 *device, uint8_t sco_bit);
  */
 
 HAL_StatusTypeDef BMP180_ReadTemp(BMP180 *device);
-HAL_StatusTypeDef BMP180_ReadPressure(BMP180 *device);
+HAL_StatusTypeDef BMP180_ReadPressure(BMP180 *device, CONTROL_REGISTER control_register);
 
 HAL_StatusTypeDef BMP180_ReadReg(BMP180 *device, uint8_t reg_addr, uint8_t *data);
 HAL_StatusTypeDef BMP180_ReadRegs(BMP180 *device, uint8_t reg_addr, uint8_t *data, uint8_t size);
